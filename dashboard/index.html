@@ -518,7 +518,7 @@
         <div class="heatmap-wrap">
           <table class="heatmap" id="heatmap-table"></table>
         </div>
-        <div class="card-insight">Read each row as a profile. GitHub Copilot concentrates on coding. Claude indexes toward writing and research. ChatGPT is nearly flat across all tasks, confirming its generalist role.</div>
+        <div class="card-insight">Read each row as a profile. Claude and GitHub Copilot both peak at coding and study. The distinction is that Copilot is coding only, while Claude is high across coding, study, and assignments simultaneously. ChatGPT is nearly flat across all tasks, confirming its generalist role.</div>
       </div>
       <div class="card">
         <div class="card-title">Tool trust vs hours saved (bubble = user count)</div>
@@ -806,7 +806,7 @@
         <div class="finding-num">02</div>
         <div class="finding-content">
           <div class="finding-title">Clear tool to task affinity exists and differs meaningfully across tools</div>
-          <div class="finding-desc">Source: use case heatmap. Claude users index toward writing and research. ChatGPT shows a flat affinity profile across all tasks, confirming its generalist role. GitHub Copilot concentrates almost entirely on coding. Tool choice and task choice are correlated but the alignment is imperfect.</div>
+          <div class="finding-desc">Source: use case heatmap. Claude peaks at coding, study, and assignments, all at or above 88%, making it a high-intensity multi-task tool rather than a writing specialist. GitHub Copilot concentrates on coding. ChatGPT shows a flat affinity profile across all tasks. Tool choice and task choice are correlated but the alignment is imperfect.</div>
         </div>
       </div>
 
@@ -986,26 +986,32 @@ function renderBars(containerId, data, maxVal) {
 function renderHeatmap() {
   const table = document.getElementById('heatmap-table');
   if (!table) return;
-  const allVals = [];
-  heatmapTools.forEach(t => heatmapUC.forEach((_, i) => {
-    const pct = heatmapRaw[t][i] / heatmapToolCounts[t] * 100;
-    allVals.push(pct);
-  }));
-  const maxV = Math.max(...allVals);
 
-  const headerRow = `<tr><th>Tool</th>${heatmapUC.map(u => `<th>${u.replace(' & ','/')}</th>`).join('')}</tr>`;
+  // Pre-compute pct matrix
+  const pctMatrix = {};
+  heatmapTools.forEach(t => {
+    pctMatrix[t] = heatmapUC.map((_, i) => heatmapRaw[t][i] / heatmapToolCounts[t] * 100);
+  });
+
+  // Per-column min/max so contrast is meaningful within each use case column
+  const colMin = heatmapUC.map((_, i) => Math.min(...heatmapTools.map(t => pctMatrix[t][i])));
+  const colMax = heatmapUC.map((_, i) => Math.max(...heatmapTools.map(t => pctMatrix[t][i])));
+
+  const headerRow = '<tr><th>Tool</th>' + heatmapUC.map(u => '<th>' + u + '</th>').join('') + '</tr>';
   const rows = heatmapTools.map(t => {
     const cells = heatmapUC.map((uc, i) => {
-      const pct = heatmapRaw[t][i] / heatmapToolCounts[t] * 100;
-      const intensity = pct / maxV;
-      const bg = `rgba(0,0,0,${intensity * 0.72 + 0.04})`;
-      const fg = intensity > 0.5 ? '#ffffff' : '#000000';
-      return `<td style="background:${bg};color:${fg}" title="${t}: ${uc} = ${pct.toFixed(0)}%">${pct.toFixed(0)}%</td>`;
+      const pct = pctMatrix[t][i];
+      const range = colMax[i] - colMin[i];
+      const intensity = range < 1 ? 0.5 : (pct - colMin[i]) / range;
+      const alpha = (intensity * 0.65 + 0.07).toFixed(3);
+      const bg = 'rgba(0,0,0,' + alpha + ')';
+      const fg = parseFloat(alpha) > 0.42 ? '#ffffff' : '#000000';
+      return '<td style="background:' + bg + ';color:' + fg + '" title="' + t + ': ' + uc + ' = ' + pct.toFixed(0) + '%">' + pct.toFixed(0) + '%</td>';
     }).join('');
-    return `<tr><td>${t}</td>${cells}</tr>`;
+    return '<tr><td>' + t + '</td>' + cells + '</tr>';
   }).join('');
 
-  table.innerHTML = `<thead>${headerRow}</thead><tbody>${rows}</tbody>`;
+  table.innerHTML = '<thead>' + headerRow + '</thead><tbody>' + rows + '</tbody>';
 }
 
 // ---- SCATTER ----
